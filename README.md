@@ -59,12 +59,12 @@ The parameters file details the range of wavelengths to study and the size of th
     /* resolution that determines the number of angles that will be used */
     orientational_average_resolution: determines how many angles to fire incoming radiation from (see copy of Fig. C1 in Lodge_et_al_2023.pdf). For example, a value of 0 corresponds to 12 equally-spaced angles, a value of 1 corresponds to 42 angles, a value of 2 corresponds to 92 angles and so on... 
     
-    threadnumber: choose the number of threads to distribute the parallelelised calculations across
+    threadnumber: choose the number of threads to distribute the parallelised calculations across
     
     N_monomers: set the number of monomers for the shape that you are analysing (often you can judge this by eye using STAG)
-    MMF_method: select the cut-off function for the structure factor calculation a value of 0 gives a gaussian cutoff and a value of 1 gives a fractal cutoff. We use the fractal cutoff as default to match OPTOOL. For more detials, see Eq. (19) of Tazaki, R. and Tanaka, H., 2018. Light scattering by fractal dust aggregates. II. opacity and asymmetry parameter. The Astrophysical Journal, 860(1), p.79.
+    MMF_method: select the cut-off function for the structure factor calculation a value of 0 gives a gaussian cutoff and a value of 1 gives a fractal cutoff. We use the fractal cutoff as default to match OPTOOL. For more details, see Eq. (19) of Tazaki, R. and Tanaka, H., 2018. Light scattering by fractal dust aggregates. II. opacity and asymmetry parameter. The Astrophysical Journal, 860(1), p.79.
 
-Fig C1 from Lodge et al. (2023), with example angles:
+Fig C1 from Lodge et al. (2023), with example angles for incoming radiation marked:
 
   - "orientational_average_resolution= 0" would assess 12 angles
   - "orientational_average_resolution= 1" would assess 42 angles
