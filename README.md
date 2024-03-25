@@ -127,7 +127,7 @@ The other files may be of use to those that wish to do further detailed analysis
 
 # Citations/Disclaimer
 
-If CORAL is useful to your research, please cite Lodge et al. (2023). You are free to use and modify this code, but please attitribute credit to the author (Matt Lodge) and also the authors below.
+If CORAL is useful to your research, please cite Lodge et al. (2023). You are free to use and modify this code, but please attribute credit to the author (Matt Lodge) and also the authors below.
 
 I would like to thank the authors of the following two codes, which were really well-written benchmark models. The detailed comments 
 throughout were also indredibly helpful for debugging our own models, and we are grateful for their attention to detail:
