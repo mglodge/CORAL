@@ -1,3 +1,4 @@
+
 /*
 
 01/12/23 - Intial public release. CORAL (Comparasion Of Radiative AnaLyses) is designed to compare three seperate optical scattering theories:
@@ -16,7 +17,7 @@ If these shape files are used in your own research, please cite their paper. If 
 You are free to use and modify this code, but please attitribute credit to the author (Matt Lodge) and also the authors below.
 
 I would like to thank the authors of the following two codes, which were really well-written benchmark models. The detailed comments 
-throughout were also indredibly helpful for debugging our own models, and we are grateful for their attention to detail:
+throughout were also incredibly helpful for debugging our own models, and we are grateful for their attention to detail:
 
     OPTOOL: Dominik, C., Min, M. & Tazaki, R. 2021, Optool, 1.9, Astrophysics Source Code Library, ascl:2104.010
 
@@ -25,6 +26,15 @@ throughout were also indredibly helpful for debugging our own models, and we are
 Although every care has been taken to benchmark the code and test it under a wide range of conditions (see attached paper for details), 
 this code is provided without a warantee of any kind. The author cannot be held liable or accept any resposibility for any claim, loss 
 or damages that arise in connection with the use of this code.
+
+28/10/24 - Update to include Filtered-Coupled Dipole method of Yurkin et al. (2010), explained in the following paper:
+
+    "Application of the discrete dipole approximation to very large refractive indices: Filtered coupled dipoles revived" (2010), Yurkin et al.
+
+Note that the structure of parameter files have been updated in this version (v2.0), to allow the user to choose between using the filtered-coupled dipole
+method or the corrected-LDR method (see Draine and Flatau 1994). Make sure to use parameter files v2.0 as well when running CORAL v2.0 onwards!
+
+*/
 
 */
 
@@ -219,8 +229,8 @@ double _Complex Bessel_1st_kind(int bessel_order, double _Complex bessel_argumen
     b2 = 8.7822303*pow(10,-6);
     b3 = 1.0238752*pow(10,-2);
     b4 = 3.7588265;
-    i2_max=100; // limit set in Tazeki for series expansion method
-    downwards_extra=100; // extra terms to calculate in Jablonski downwards recurrence method (set as 100 both in Jablonski + Tazeki)
+    i2_max=100; // limit set in Tazaki for series expansion method
+    downwards_extra=100; // extra terms to calculate in Jablonski downwards recurrence method (set as 100 both in Jablonski + Tazaki)
 
     // Find the complex versions of sin x and cos x (there is no built in function for this)
     complex_sin_x= sin(creal(bessel_argument))*cosh(cimag(bessel_argument)) + cos(creal(bessel_argument))*sinh(cimag(bessel_argument))*I; // sin is complex because the refractive index is complex (m=a+bi) -- the general rule is sin(a+bi) = sin(a)cosh(b) + cos(a)sinh(b)i
@@ -424,7 +434,7 @@ double calculate_geometrical_cross_section(int N_monomers, double r_monomer, dou
     int num_steps;
     double MMF_eta, MMF_eta_th, N_th, get_G, MMF_A, sigma, integrated_sigma, sigma_th, integrated_sigma_th, x_min, x_max, dx; 
 
-    // code to calculate the geometrical cross-section of aggregates, using the method in Tazeki (2021), for use in MMF calculations
+    // code to calculate the geometrical cross-section of aggregates, using the method in Tazaki (2021), for use in MMF calculations
 
     MMF_eta = pow(2.0, d_f-1.0)*k_frac_prefactor/N_monomers;
 
@@ -788,7 +798,7 @@ double calculate_structure_factor(double d_f, double q_coeff, double radius_of_g
 
         // perform integration as normal -- start by finding limits to integral
         
-        x_max = pow((25.0/0.5),(1.0/d_f)); // same as in Tazaki + Tanaka
+        x_max = pow((25.0/0.5),(1.0/d_f)); // same as in Tazaki
         num_steps = 100000; //same value used in optools_fractal.f90
         dx=x_max/num_steps; //calculate step size
         //printf("\n num steps = %d  \n x_min = 0    \n x_max = %f    \n dx = %f   ",  num_steps, x_max, dx);
@@ -821,7 +831,7 @@ double calculate_structure_factor(double d_f, double q_coeff, double radius_of_g
         //SAFETY CHECK - S(q) should always be >=0
         if(find_S_q<0){
             //printf("\n WARNING: find_S_q < 0. Assuming it should be = 0 instead (this can happen for d_f > 2, and is ok...)");
-            find_S_q=0; //if the monomers are far enough apart that they don't affect each other, setting find_S_q = 0 should find a case for two non-interacting spheres. Tazeki made the same note in optools_fractal.f90.
+            find_S_q=0; //if the monomers are far enough apart that they don't affect each other, setting find_S_q = 0 should find a case for two non-interacting spheres. Tazaki made the same note in optools_fractal.f90.
         }
     }
 
@@ -883,6 +893,62 @@ double maximum_C_abs(double MFT_C_abs, double G_MMF, double tau_MMF){
         return G_tau_term;
     }
 }
+void get_Si_and_Ci(double x_arg, double *Si, double _Complex *Ci){
+    double numerator, denominator, f_x, g_x;
+
+    /* WARNING: This approximation does not work for -ve arguments of x. However, we won't ever need one here, because:
+    
+        m|kd<1
+          kd<1 (i)
+
+    and the -ve x argument is: (kF - kB)R 
+                               (pi - kd)R  (ii)
+
+    so substituting (ii) into (i) means the bit in brackets will always be > (pi - 1) and thus positive.
+
+    If we want to include -ve x_args, we'd have to copy the method in this paper to make our own formulae, or use simspons rule to find the integrals:
+    GalSim: The modular galaxy image simulation toolkit (2015), Rowe et al. */
+
+
+
+
+
+    // NOTE: We could also speed this up by implementing Horner's rule for the polynomials, and using x*x*x*x instead of pow(x,4).
+    // Implement this if it ever runs slow and needs a speed boost (though for now, the iterations in the matrix solver look like they will be the bottleneck rather than the matrix creation which uses this code)
+
+    if (x_arg<=0){
+        printf("\n\n\n\n WARNING: Our sine and cosine integral approximations cannot deal with x_arg<0 (and x_arg is %f). Please see notes in function, but something has probably probably gone wrong as this warning message shouldn't be needed (x_arg should always be > 0 ...) \n\n", x_arg);
+        getchar();
+    }
+
+    if (x_arg<4){
+        // find Si
+        numerator = 1 - 4.54393409816329991 * 0.01*pow(x_arg,2.0) + 1.15457225751016682 * 0.001*pow(x_arg,4.0) - 1.41018536821330254 * 0.00001*pow(x_arg,6.0) + 9.43280809438713025*0.00000001*pow(x_arg,8.0) - 3.53201978997168357*0.0000000001*pow(x_arg,10.0) + 7.08240282274875911*pow(0.1,13)*pow(x_arg,12.0) - 6.05338212010422477*pow(0.1,16)*pow(x_arg,14.0);
+        denominator = 1 + 1.01162145739225565 * 0.01*pow(x_arg,2.0) + 4.99175116169755106 * 0.00001*pow(x_arg,4.0) + 1.55654986308745614 * 0.0000001*pow(x_arg,6) + 3.28067571055789734 * pow(0.1,10)*pow(x_arg,8) + 4.5049097575386581 * pow(0.1,13)*pow(x_arg,10) + 3.21107051193712168 * pow(0.1,16)*pow(x_arg,12);
+
+        *Si = x_arg*numerator/denominator;
+
+        // find Ci
+        numerator = -0.25 + 7.51851524438898291 * 0.001*pow(x_arg,2.0) - 1.27528342240267686 * 0.0001*pow(x_arg,4) + 1.05297363846239184 * 0.000001*pow(x_arg,6) - 4.68889508144848019 * 0.000000001*pow(x_arg,8.0) + 1.06480802891189243*pow(0.1,11)*pow(x_arg,10) - 9.93728488857585407 * pow(0.1,15)*pow(x_arg,12.0);        
+        denominator = 1 + 1.1592605689110735 * 0.01*pow(x_arg,2.0) + 6.72126800814254432 * 0.00001*pow(x_arg,4.0) + 2.55533277086129636 * 0.0000001*pow(x_arg,6) + 6.97071295760958946 * pow(0.1,10)*pow(x_arg,8) + 1.38536352772778619*pow(0.1,12)*pow(x_arg,10) + 1.89106054713059759 * pow(0.1,15)*pow(x_arg,12) + 1.39759616731376855*pow(0.1,18)*pow(x_arg,14);
+
+        *Ci = 0.57721566490153286060 + clog(x_arg) + pow(x_arg,2)*numerator/denominator; //remember that log = ln in C programming! The complex clog is in case the x-argument is negative, which makes the cosine integral complex (but not the sine integral).
+    
+    }
+    else{
+
+        numerator = 1.0 + 7.44437068161936700618*100*pow(x_arg,-2) + 1.96396372895146869801*100000*pow(x_arg,-4) + 2.37750310125431834034*10000000*pow(x_arg,-6) + 1.43073403821274636888*pow(10,9)*pow(x_arg,-8) + 4.33736238870432522765*pow(10,10)*pow(x_arg,-10) + 6.40533830574022022911*pow(10,11)*pow(x_arg,-12) + 4.20968180571076940208*pow(10,12)*pow(x_arg,-14) + 1.00795182980368574617*pow(10,13)*pow(x_arg,-16) + 4.94816688199951963482*pow(10,12)*pow(x_arg,-18) - 4.94701168645415959931*pow(10,11)*pow(x_arg,-20);      
+        denominator = 1.0 + 7.46437068161927678031*100*pow(x_arg,-2) + 1.97865247031583951450*100000*pow(x_arg,-4) + 2.41535670165126845144*10000000*pow(x_arg,-6) + 1.47478952192985464958*1000000000*pow(x_arg,-8) + 4.58595115847765779830*pow(10,10)*pow(x_arg,-10) + 7.08501308149515401563*pow(10,11)*pow(x_arg,-12) + 5.06084464593475076774*pow(10,12)*pow(x_arg,-14) + 1.43468549171581016479*pow(10,13)*pow(x_arg,-16)  + 1.11535493509914254097*pow(10,13)*pow(x_arg,-18);
+        f_x = (1.0/x_arg)*numerator/denominator;
+        
+        numerator = 1.0 + 8.1359520115168615*100*pow(x_arg,-2) + 2.35239181626478200*100000*pow(x_arg,-4) + 3.12557570795778731*10000000*pow(x_arg,-6) + 2.06297595146763354*pow(10,9)*pow(x_arg,-8) + 6.83052205423625007*pow(10,10)*pow(x_arg,-10) + 1.09049528450362786*pow(10,12)*pow(x_arg,-12) + 7.57664583257834349*pow(10,12)*pow(x_arg,-14) + 1.81004487464664575*pow(10,13)*pow(x_arg,-16) + 6.43291613143049485*pow(10,12)*pow(x_arg,-18) - 1.36517137670871689*pow(10,12)*pow(x_arg,-20);
+        denominator = 1.0 + 8.19595201151451564*100*pow(x_arg,-2) + 2.40036752835578777*100000*pow(x_arg,-4) + 3.26026661647090822*10000000*pow(x_arg,-6) + 2.23355543278099360*pow(10,9)*pow(x_arg,-8) + 7.87465017341829930*pow(10,10)*pow(x_arg,-10) + 1.39866710696414565*pow(10,12)*pow(x_arg,-12) + 1.17164723371736605*pow(10,13)*pow(x_arg,-14) + 4.01839087307656620*pow(10,13)*pow(x_arg,-16) + 3.99653257887490811*pow(10,13)*pow(x_arg,-18);
+        g_x = (1.0/pow(x_arg,2))*numerator/denominator;
+
+        *Si = (3.14159265358979323846264/2.0) - f_x*cos(x_arg) - g_x*sin(x_arg);
+        *Ci = f_x*sin(x_arg) - g_x*cos(x_arg);
+    }
+}
 FILE* matrixfile;
 FILE* parameterfile;
 FILE* LDRcriteriafile;
@@ -908,8 +974,9 @@ FILE* refrindfile;
 FILE* mie_sphere_mieff_file;
 FILE* MMF_mieff_file;
 FILE* DDA_mieff_file;
-int requested_N, lattice_N, lattice_dim, lattice_radius, x_pos, y_pos, z_pos, sphere_N, N, n, i, j, v, w, k, highest_k=0, b, number_of_spheres, STAG_lattice_dim, temp_int, dipole_number, IX, IY, IZ, ICOMP[3], shapeswitch, marbleswitch, num_wavelengths, N_theta, N_phi, radius_index, wavelength_index, angle_index, N_x, N_y, N_z, e, f, g, orientational_average_resolution, num_vertices, new_vertex, vertex_1, vertex_2, vertex_3, triangular_faces[20][3], edges[30][3], loop_number, speed_test, number_of_threads, wavelength_increment_type, number_ref_ind_data_points, polarisation, num_radii, radius_increment_type;
-double _Complex ref_ind_medium, ref_ind_sphere, epsilon_sphere, alpha_CM, alpha_denominator_1, alpha_denominator_2, alpha_denominator_3, alpha_CLDR[3][3], inverse_alpha_CLDR[3][3], complex_temp, conj_inverse_alpha;
+FILE* characteristic_radius_file;
+int requested_N, lattice_N, lattice_dim, lattice_radius, x_pos, y_pos, z_pos, sphere_N, N, n, i, j, v, w, k, highest_k=0, b, number_of_spheres, STAG_lattice_dim, temp_int, dipole_number, IX, IY, IZ, ICOMP[3], shapeswitch, marbleswitch, num_wavelengths, N_theta, N_phi, radius_index, wavelength_index, angle_index, N_x, N_y, N_z, e, f, g, orientational_average_resolution, num_vertices, new_vertex, vertex_1, vertex_2, vertex_3, triangular_faces[20][3], edges[30][3], loop_number, speed_test, number_of_threads, wavelength_increment_type, number_ref_ind_data_points, polarisation, num_radii, radius_increment_type, FLTCDM;
+double _Complex ref_ind_medium, ref_ind_sphere, epsilon_sphere, alpha_CM, alpha_denominator_1, alpha_denominator_2, alpha_denominator_3, alpha_matrix[3][3], inverse_alpha[3][3], complex_temp, conj_inverse_alpha;
 double wavelength, wavenumber_k, magnetic_perm_medium, magnetic_perm_sphere, relative_permeability_sphere, accuracy, highest_wavelength, LDR_criteria, LDR_criteria_failpoint, LDR_wavelength_increment, LDR_R_mie, lowest_wavelength_so_far;
 double aerosol_radius_min, aerosol_radius_max, aerosol_radius, aerosol_radius_increment, d_to_point, DDA_position_offset_X0, total, previous_total, previous_previous_total, total2;
 double d, b_1, b_2, b_3, incident_light[3], initial_polarisation[3], rotated_polarisation[3], DDA_Q_Ext, DDA_Q_Abs, DDA_Q_Scatter, DDA_C_Ext, DDA_C_Abs, DDA_C_Scatter, abs_sum, PIA2;
@@ -957,7 +1024,7 @@ double _Complex* p_k;
 double _Complex**** vectors;
 char buf[1000];
 
-// Variables used to find g=<cos(theta)> (same names as in DDSCAT)
+// DDSCAT variables used to find g=<cos(theta)>
 int ICOSTH, IPHI, NTHETA, NPHI;
 double THETA, PHI, THETAL, THETAU, AFAC, SI, TERM, THETA0, DDA_X, DOMEGA, ETASCA, DPHI;
 double AK_TF[3], AKK, AK2, E02, DX[3], AKS1[3], AKS2[3], AKS0[3], AKSN[3], EINC, RRR, ES2, COSTH, SINTH, COSPHI, SINPHI, DDA_W, CSCA, CSCAG, FALB, QSCA, QSCAG;
@@ -1004,7 +1071,7 @@ int main()
 
     printf("\n\n ---------------------------------------------------------------------------------------------------------------------");
     printf("\n ---------------------------------------------------------------------------------------------------------------------");
-    printf("\n\n                             WELCOME TO CORAL (Comparasion Of Radiative AnaLyses)           \n\n");
+    printf("\n\n                   WELCOME TO CORAL (Comparison Of Radiative AnaLyses!)            \n\n");
     printf("\n                                                                                                                         ");
     printf("\n                                                           O O         O O                                                   ");
     printf("\n                                       \\                   O           O                                                 ");
@@ -1033,6 +1100,7 @@ int main()
 
     fscanf(parameterfile," %*s %d %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s", &shapeswitch);
     fscanf(parameterfile," %*s %d %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s ", &marbleswitch);
+    fscanf(parameterfile," %*s %d %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s ", &FLTCDM);
     fscanf(parameterfile," %*s %lf %*s %*s %*s %*s %*s ", &accuracy);
     fscanf(parameterfile," %*s %lf %*s %*s %*s %*s ", &aerosol_radius_min);
     fscanf(parameterfile," %*s %lf %*s %*s %*s %*s ", &aerosol_radius_max);
@@ -1129,7 +1197,7 @@ int main()
 
     /* print summary of imported parameters to screen */
 
-    printf(" INITIAL PARAMETERS: \n\n\t shapeswitch= %d\n\t marbleswitch= %d\n\t accuracy= %f\n\t requested_N= %d\n\t speed_test= %d", shapeswitch, marbleswitch, accuracy, requested_N, speed_test);
+    printf(" INITIAL PARAMETERS: \n\n\t shapeswitch= %d\n\t marbleswitch= %d\n\t filtered_coupled_dipole_switch= %d\n\t accuracy= %f\n\t requested_N= %d\n\t speed_test= %d", shapeswitch, marbleswitch, FLTCDM, accuracy, requested_N, speed_test);
     printf("\n\t medium refractive index = %f + %g i \n\t relative permeability sphere = %g", creal(ref_ind_medium), cimag(ref_ind_medium), relative_permeability_sphere);
 
     if(radius_increment_type==0){
@@ -1223,7 +1291,7 @@ int main()
 
     /* create a .refrind file for VIRGA (lists the refractive index at each of the wavelengths that will be assessed) */
 
-    refrindfile=fopen("refractive_index_data.refrind","w"); //open file
+    refrindfile=fopen("soot.refrind","w"); //open file
     
     for(i=1; i<=num_wavelengths; i++){
         wavelength= wavelength_list[num_wavelengths-i]; //reverse the order (start with the highest wavelength)
@@ -1547,7 +1615,6 @@ int main()
     }
 
 
-
         /* SHAPE DATA SECTION */
 
     /* Choose whether to import data from a shape file (shapeswitch=1) or make spheres from scratch (shapeswitch=0) */
@@ -1648,7 +1715,9 @@ int main()
         printf("\n\n d = %f um \n smallest aerosol radius = %f \n Lattice dim = %d \n\n", d, aerosol_radius, lattice_dim);
 
 
-        DDA_position_offset_X0=0;  /* REORDERING CODE if wanting to compare to DDSCAT, use: DDA_position_offset_X0= 1 - lattice_dim
+        DDA_position_offset_X0=0;
+        /* REORDERING CODE - leave in if wanting to compare to DDSCAT
+        DDA_position_offset_X0= 1 - lattice_dim; //using the offset values of X0 from DDASCAT code
         printf("\n DDA Lattice offset = %f \n", DDA_position_offset_X0); */
 
         N=0;
@@ -1723,6 +1792,11 @@ int main()
                 sphere_N++; //counts number of dipoles
             }
         }
+
+        //printf("\n DEBUG: There should be %d dipoles!",N);
+
+       /* REORDERING CODE - leave in if wanting to compare to DDSCAT
+        sphere_N=lattice_N; */
 
         sphere_dipole_positions=(double**)malloc(sphere_N*sizeof(double*));
         for (i=0; i<sphere_N; i++) {
@@ -1873,6 +1947,59 @@ int main()
     radius_of_gyration_unscaled= sqrt(radius_of_gyration/total_mass); //sqrt and complete calculation in units of "dipoles" (not um)
     //the above radius_of_gyration is in "dipole units"; save conversion to um for later, when we have chosen an aerosol radius
 
+    characteristic_radius_file=fopen("characteristic_radii.txt","w"); //open file
+
+    //find the characteristic radii for each shape analysed
+    for(radius_index=0; radius_index<num_radii; radius_index++){
+
+        aerosol_radius=radius_list[radius_index]; //set new aerosol radius
+
+        fprintf(characteristic_radius_file, "Calculations for particle of radius %e um\n\n", aerosol_radius); //save aerosol radius to .mieff outfile
+
+        //calculate dipole spacing 'd' based on the aerosol radius, depending on whether we used a shape file or made spheres
+        if(shapeswitch==1){
+            d=pow((4.0*pi/(3*N)), (1.0/3.0))*aerosol_radius; // if we used a shape file: calculate dipole spacing 'd' now that we have the aerosol size
+        }
+        else{
+            d= aerosol_radius/(lattice_dim/2); // if we used the sphere maker: find lattice spacing using the fact that lattice dim = diameter (e.g. 22 cubes) for a single sphere, so divide by 2 to find radius in cubes (e.g. 22 cubes/2 = 11 cubes radius). Divide aerosol radius (in um) by this radius to find um/cube
+        }
+
+        //print mass radius
+        fprintf(characteristic_radius_file,"R_m= %e um\n", aerosol_radius);
+
+        // calculate and print radius of gyration
+        fprintf(characteristic_radius_file,"R_g= %e um\n", radius_of_gyration_unscaled*d); //remember to convert unscaled radius of gyration
+
+        // calculate and print Hydrodynamic radius
+        ensemble_average=0;
+        for(i=0;i<N;i++){
+            for(j=0;j<N;j++){
+                radius_to_dipole=sqrt( pow((dipole_positions[i][0]-dipole_positions[j][0]),2) + pow((dipole_positions[i][1]-dipole_positions[j][1]),2) + pow((dipole_positions[i][2]-dipole_positions[j][2]),2) ); //find radius between dipole i and dipole j
+                
+                if(i!=j){ //if i and j are NOT equal
+                    ensemble_average += 1.0/radius_to_dipole;
+                }
+            }
+        }
+        ensemble_average= ensemble_average/N;   //complete ensemble average calculation
+
+        hydrodynamic_radius = 2.0*N*d/ensemble_average; //remember to convert unscaled radius from dipole units to um (multiply by 'd')
+        fprintf(characteristic_radius_file,"R_H= %e um\n", hydrodynamic_radius);
+        
+        // calculate and print radius of rotation
+        radius_of_rotation=0;
+        for(i=0;i<N;i++){
+            radius_to_dipole=sqrt( pow((dipole_positions[i][0]-center_of_mass[0]),2) + pow((dipole_positions[i][1]-center_of_mass[1]),2) + pow((dipole_positions[i][2]-center_of_mass[2]),2) ); //find radius from center of mass (center of rotation) to dipole
+
+            if(radius_to_dipole>radius_of_rotation){ //check if this is the new maximum
+                radius_of_rotation= radius_to_dipole; //if so, save it
+            }
+        }
+        radius_of_rotation= radius_of_rotation*d; //convert unscaled radius from dipole units to um
+        fprintf(characteristic_radius_file,"R_r= %e um\n", radius_of_rotation);
+
+    }
+    fclose(characteristic_radius_file);
     
     if(speed_test==1){
         current_time= omp_get_wtime();
@@ -2119,11 +2246,7 @@ int main()
         fprintf(timefile, " %12f   Shape exported to DDSCAT and STAG.\n", current_time-start_time);
     }
 
-
-
-
-
-
+ 
 
     /* calculate the parameter space over which this shape file is valid (the range of r_mie values for which this number of dipoles N will be valid, over the range of wavelengths assessed) */
 
@@ -2148,6 +2271,33 @@ int main()
 
         fclose(LDRparameterspacefile); //close file
     }
+
+
+
+    /* temporary code to determine the minimum wavelength where the LDR criteria is met for each of the shapes 
+    
+    lowest_wavelength_so_far=0; //set an initial value of 0. If the LDR criteria is always <1, a value of 0 will be returned.
+    for(wavelength_index=1; wavelength_index<100000; wavelength_index++){
+
+        wavelength = wavelength_index*0.001; //this will run between 0.001 um and 100 um
+        wavenumber_k= 2.0*pi/wavelength;
+
+        // calculate refractive index (this is here because it is wavelength dependent) 
+        ref_ind_sphere=get_refractive_index(wavelength, refractive_index_data, number_ref_ind_data_points);
+
+        LDR_criteria= cmodulus(ref_ind_sphere)*wavenumber_k*d;
+
+        printf("\nwavelength: %f um     ref ind: %f + %f i   wavenumber: %f    d = %f   LDR criteria: %f", wavelength, creal(ref_ind_sphere), cimag(ref_ind_sphere), wavenumber_k, d, LDR_criteria);
+
+        if(LDR_criteria > 1){
+            lowest_wavelength_so_far=wavelength; //record any values where the LDR criteria goes >1. It will work it's way through the list and return the final value where the condition was violated - this is lambda_min
+        }
+    }
+    printf("\n\n The minimum wavelength estimated to give correct results by the old validity criteria |m|kd<1 is predicted to be: %f ", lowest_wavelength_so_far);
+    getchar();*/
+
+
+
 
 
 
@@ -2237,7 +2387,7 @@ int main()
     LDR_criteria_failpoint=0;
 
     /* MAIN RESULTS FILE: file to save orientationally-averaged and polarisation-averaged results */
-    polarisationresultsfile=fopen("DDA_results.txt","w"); //open file for saving polarisation-averaged and orientationally-averaged results to
+    polarisationresultsfile=fopen("results.txt","w"); //open file for saving polarisation-averaged and orientationally-averaged results to
     fprintf(polarisationresultsfile,"     Radius(um)     Wavelength(um)         Q_Ext          Q_Scatter        Q_Abs             C_Ext         C_Scatter         C_Abs       g=<cos(theta)>\n");
 
     /* qtable file (DDSCAT-style) */
@@ -2302,6 +2452,8 @@ int main()
                 //printf("\n\n Initial polarisation state (z-direction): \n\n\t\t x: %10f\n\t\t y: %10f\n\t\t z: %10f", initial_polarisation[0], initial_polarisation[1], initial_polarisation[2]);
             }   
 
+
+
             if(speed_test==1){
                 current_time= omp_get_wtime();
                 fprintf(timefile, " %12f   Loops started.\n", current_time-start_time);
@@ -2362,61 +2514,191 @@ int main()
                     rotated_polarisation[2]= -1.0*sin(theta_3D)*initial_polarisation[0] + cos(theta_3D)*initial_polarisation[2];
 
 
-                    /* CALCULATE ALPHA_CLDR FOR MATERIALS */
+                    /* CALCULATE alpha_matrix FOR MATERIALS */
 
                     alpha_CM= 3.0*(epsilon_sphere-1.0)/(4.0*pi*(epsilon_sphere+2.0)); //Find clausius-Mossetti polarisability, then correct/adjust it using the terms below
 
-                    /* row 1 */
-                    alpha_denominator_1 = 1.0 + (alpha_CM)*(b_1 + epsilon_sphere*b_2 + epsilon_sphere*b_3*pow(incident_light[0],2))*pow(wavenumber_k*d,2) - (alpha_CM)*(2.0/3.0)*pow(wavenumber_k*d,3)*I; //find denominator first (easier to assign complex component this way)
-                    alpha_CLDR[0][0]= alpha_CM/alpha_denominator_1;
-                    alpha_CLDR[0][1]=0 + 0*I; //find corrected alpha_LDR for row 1 of 3x3 matrix
-                    alpha_CLDR[0][2]=0 + 0*I;
 
-                    /* row 2 - DIFFERENT denominator (incident_light[1]) */
-                    alpha_denominator_2 = 1.0 + (alpha_CM)*(b_1 + epsilon_sphere*b_2 + epsilon_sphere*b_3*pow(incident_light[1],2))*pow(wavenumber_k*d,2) - (alpha_CM)*(2.0/3.0)*pow(wavenumber_k*d,3)*I; //find denominator first (easier to assign complex component this way)
-                    alpha_CLDR[1][0]=0 + 0*I; //find corrected alpha_LDR for row 2 of 3x3 matrix
-                    alpha_CLDR[1][1]= alpha_CM/alpha_denominator_2;
-                    alpha_CLDR[1][2]=0 + 0*I;
+                    if(FLTCDM==0){ // use GDK LDR METHOD: find corrected alpha_LDR
+                        
+                        /* row 1 */
+                        alpha_denominator_1 = 1.0 + (alpha_CM)*(b_1 + epsilon_sphere*b_2 + epsilon_sphere*b_3*pow(incident_light[0],2))*pow(wavenumber_k*d,2) - (alpha_CM)*(2.0/3.0)*pow(wavenumber_k*d,3)*I; //find denominator first (easier to assign complex component this way)
+                        alpha_matrix[0][0]= alpha_CM/alpha_denominator_1;
+                        alpha_matrix[0][1]=0 + 0*I; //find corrected alpha_LDR for row 1 of 3x3 matrix
+                        alpha_matrix[0][2]=0 + 0*I;
 
-                    /* row 2 - DIFFERENT denominator (incident_light[2])*/
-                    alpha_denominator_3 = 1.0 + (alpha_CM)*(b_1 + epsilon_sphere*b_2 + epsilon_sphere*b_3*pow(incident_light[2],2))*pow(wavenumber_k*d,2) - (alpha_CM)*(2.0/3.0)*pow(wavenumber_k*d,3)*I; //find denominator first (easier to assign complex component this way)
-                    alpha_CLDR[2][0]=0 + 0*I; //find corrected alpha_LDR for row 3 of 3x3 matrix
-                    alpha_CLDR[2][1]=0 + 0*I;
-                    alpha_CLDR[2][2]= alpha_CM/alpha_denominator_3;
+                        /* row 2 - DIFFERENT denominator (incident_light[1]) */
+                        alpha_denominator_2 = 1.0 + (alpha_CM)*(b_1 + epsilon_sphere*b_2 + epsilon_sphere*b_3*pow(incident_light[1],2))*pow(wavenumber_k*d,2) - (alpha_CM)*(2.0/3.0)*pow(wavenumber_k*d,3)*I; //find denominator first (easier to assign complex component this way)
+                        alpha_matrix[1][0]=0 + 0*I; //find corrected alpha_LDR for row 2 of 3x3 matrix
+                        alpha_matrix[1][1]= alpha_CM/alpha_denominator_2;
+                        alpha_matrix[1][2]=0 + 0*I;
+
+                        /* row 2 - DIFFERENT denominator (incident_light[2])*/
+                        alpha_denominator_3 = 1.0 + (alpha_CM)*(b_1 + epsilon_sphere*b_2 + epsilon_sphere*b_3*pow(incident_light[2],2))*pow(wavenumber_k*d,2) - (alpha_CM)*(2.0/3.0)*pow(wavenumber_k*d,3)*I; //find denominator first (easier to assign complex component this way)
+                        alpha_matrix[2][0]=0 + 0*I; //find corrected alpha_LDR for row 3 of 3x3 matrix
+                        alpha_matrix[2][1]=0 + 0*I;
+                        alpha_matrix[2][2]= alpha_CM/alpha_denominator_3;
+                    }
+                    else{ // use FILTERED COUPLED-DIPOLE METHOD: find FCD version of alpha matrix
+
+                        alpha_denominator_1 = 1.0 + alpha_CM*( (4.0/3.0)*pow(wavenumber_k*d,2) + (2.0/(3.0*pi))*clog((pi - (wavenumber_k*d))/(pi + (wavenumber_k*d)))*pow(wavenumber_k*d,3) ) - alpha_CM*(2.0/3.0)*pow(wavenumber_k*d,3)*I; //find denominator first (easier to assign complex component this way)
+                        
+                        // NOTE: Not sure why, by DDSCAT has made the radiative reaction correction term '(2/3)i(kd)^3 negative in the code (line 287 of 'alphadiag.f90), and it's negative in Draine's (1994) paper, but positive in the user guide. Assuming that the code is correct and forcing ours to match theirs for now (so keeping it negative here). 
+
+                        alpha_matrix[0][0]= alpha_CM/alpha_denominator_1;
+                        alpha_matrix[0][1]=0 + 0*I; //find corrected alpha_LDR for row 1 of 3x3 matrix
+                        alpha_matrix[0][2]=0 + 0*I;
+
+                        alpha_matrix[1][0]=0 + 0*I; //find corrected alpha_LDR for row 2 of 3x3 matrix
+                        alpha_matrix[1][1]= alpha_CM/alpha_denominator_1;
+                        alpha_matrix[1][2]=0 + 0*I;
+
+                        alpha_matrix[2][0]=0 + 0*I; //find corrected alpha_LDR for row 3 of 3x3 matrix
+                        alpha_matrix[2][1]=0 + 0*I;
+                        alpha_matrix[2][2]= alpha_CM/alpha_denominator_1;
+                    }
 
 
 
 
-                    /* Find inverse alpha_CLDR matrix */
 
-                    inverse_alpha_CLDR[0][0]= 1.0/alpha_CLDR[0][0];
-                    inverse_alpha_CLDR[0][1]= 0 + 0*I;
-                    inverse_alpha_CLDR[0][2]= 0 + 0*I;
 
-                    inverse_alpha_CLDR[1][0]= 0 + 0*I;
-                    inverse_alpha_CLDR[1][1]= 1.0/alpha_CLDR[1][1];   //this is simply the reciprocol along the diagonal (proof in black book)
-                    inverse_alpha_CLDR[1][2]= 0 + 0*I;
 
-                    inverse_alpha_CLDR[2][0]= 0 + 0*I;;
-                    inverse_alpha_CLDR[2][1]= 0 + 0*I;
-                    inverse_alpha_CLDR[2][2]= 1.0/alpha_CLDR[2][2];
+
+
+                    /* test calculation for alpha_FCD (filtered coupled dipole method) 
+
+                    alpha_denominator_1 = 1.0 + alpha_CM*((4.0/3.0)*pow(wavenumber_k*d,2) + (2.0/(3.0*pi))*clog((pi - (wavenumber_k*d))/(pi + (wavenumber_k*d)))) + alpha_CM*(2.0/3.0)*pow(wavenumber_k*d,3)*I; //find denominator first (easier to assign complex component this way)
+                    alpha_matrix[0][0]= alpha_CM/alpha_denominator_1;
+                    alpha_matrix[0][1]=0 + 0*I; //find corrected alpha_LDR for row 1 of 3x3 matrix
+                    alpha_matrix[0][2]=0 + 0*I;
+
+                    alpha_matrix[1][0]=0 + 0*I; //find corrected alpha_LDR for row 2 of 3x3 matrix
+                    alpha_matrix[1][1]= alpha_CM/alpha_denominator_1;
+                    alpha_matrix[1][2]=0 + 0*I;
+
+                    alpha_matrix[2][0]=0 + 0*I; //find corrected alpha_LDR for row 3 of 3x3 matrix
+                    alpha_matrix[2][1]=0 + 0*I;
+                    alpha_matrix[2][2]= alpha_CM/alpha_denominator_1; 
+
+
+
+                    // TEST SPACE FOR OTHER ALPHA TERMS - ALPHA CM 
+
+                    alpha_CM= 3.0*(epsilon_sphere-1.0)/(4.0*pi*(epsilon_sphere+2.0)); //Find clausius-Mossetti polarisability, then correct/adjust it using the terms below
+
+                    alpha_matrix[0][0]= alpha_CM;
+                    alpha_matrix[0][1]=0 + 0*I; //find corrected alpha_LDR for row 1 of 3x3 matrix
+                    alpha_matrix[0][2]=0 + 0*I;
+        
+                    alpha_matrix[1][0]=0 + 0*I; //find corrected alpha_LDR for row 2 of 3x3 matrix
+                    alpha_matrix[1][1]= alpha_CM;
+                    alpha_matrix[1][2]=0 + 0*I;
+
+                    alpha_matrix[2][0]=0 + 0*I; //find corrected alpha_LDR for row 3 of 3x3 matrix
+                    alpha_matrix[2][1]=0 + 0*I;
+                    alpha_matrix[2][2]= alpha_CM; */
+
+                    /* ALPHA_RR 
+
+                    alpha_CM= 3.0*(epsilon_sphere-1.0)/(4.0*pi*(epsilon_sphere+2.0)); //Find clausius-Mossetti polarisability, then correct/adjust it using the terms below
+
+                    alpha_matrix[0][0]= alpha_CM/(1.0 - (alpha_CM*(2.0/3.0)*pow(wavenumber_k*d,3)*I));
+                    alpha_matrix[0][1]=0 + 0*I; //find corrected alpha_LDR for row 1 of 3x3 matrix
+                    alpha_matrix[0][2]=0 + 0*I;
+
+                    alpha_matrix[1][0]=0 + 0*I; //find corrected alpha_LDR for row 2 of 3x3 matrix
+                    alpha_matrix[1][1]= alpha_CM/(1.0 - (alpha_CM*(2.0/3.0)*pow(wavenumber_k*d,3)*I));
+                    alpha_matrix[1][2]=0 + 0*I;
+
+                    alpha_matrix[2][0]=0 + 0*I; //find corrected alpha_LDR for row 3 of 3x3 matrix
+                    alpha_matrix[2][1]=0 + 0*I;
+                    alpha_matrix[2][2]= alpha_CM/(1.0 - (alpha_CM*(2.0/3.0)*pow(wavenumber_k*d,3)*I)); */
+
+                    /* ALPHA_DGF 
+
+                    alpha_CM= 3.0*(epsilon_sphere-1.0)/(4.0*pi*(epsilon_sphere+2.0)); //Find clausius-Mossetti polarisability, then correct/adjust it using the terms below
+
+                    alpha_matrix[0][0]= alpha_CM/(1.0 - (alpha_CM/pow(d,3.0))*(1.611992*pow(wavenumber_k*d,2.0) + (2.0/3.0)*pow(wavenumber_k*d,3.0)*I));
+                    alpha_matrix[0][1]=0 + 0*I; //find corrected alpha_LDR for row 1 of 3x3 matrix
+                    alpha_matrix[0][2]=0 + 0*I;
+
+                    alpha_matrix[1][0]=0 + 0*I; //find corrected alpha_LDR for row 2 of 3x3 matrix
+                    alpha_matrix[1][1]= alpha_CM/(1.0 - (alpha_CM/pow(d,3.0))*(1.611992*pow(wavenumber_k*d,2.0) + (2.0/3.0)*pow(wavenumber_k*d,3.0)*I));
+                    alpha_matrix[1][2]=0 + 0*I;
+
+                    alpha_matrix[2][0]=0 + 0*I; //find corrected alpha_LDR for row 3 of 3x3 matrix
+                    alpha_matrix[2][1]=0 + 0*I;
+                    alpha_matrix[2][2]= alpha_CM/(1.0 - (alpha_CM/pow(d,3.0))*(1.611992*pow(wavenumber_k*d,2.0) + (2.0/3.0)*pow(wavenumber_k*d,3.0)*I)); */
+
+
+                    /* ALPHA_LDR 
+
+                    alpha_CM= 3.0*(epsilon_sphere-1.0)/(4.0*pi*(epsilon_sphere+2.0)); //Find clausius-Mossetti polarisability, then correct/adjust it using the terms below
+                    double alpha_temp = pow(incident_light[0]*rotated_polarisation[0],2) + pow(incident_light[1]*rotated_polarisation[1],2) + pow(incident_light[2]*rotated_polarisation[2],2);
+
+                    alpha_denominator_1 = 1.0 + (alpha_CM)*(b_1 + epsilon_sphere*b_2 + epsilon_sphere*b_3*alpha_temp)*pow(wavenumber_k*d,2) - (alpha_CM)*(2.0/3.0)*pow(wavenumber_k*d,3)*I; //find denominator first (easier to assign complex component this way)
+                    alpha_matrix[0][0]= alpha_CM/alpha_denominator_1;
+                    alpha_matrix[0][1]=0 + 0*I; //find corrected alpha_LDR for row 1 of 3x3 matrix
+                    alpha_matrix[0][2]=0 + 0*I;
+
+                    alpha_matrix[1][0]=0 + 0*I; //find corrected alpha_LDR for row 2 of 3x3 matrix
+                    alpha_matrix[1][1]= alpha_CM/alpha_denominator_1;
+                    alpha_matrix[1][2]=0 + 0*I;
+
+                    alpha_matrix[2][0]=0 + 0*I; //find corrected alpha_LDR for row 3 of 3x3 matrix
+                    alpha_matrix[2][1]=0 + 0*I;
+                    alpha_matrix[2][2]= alpha_CM/alpha_denominator_1; */
+                    
+                    
+                    
+                    /* ALPHA_FCD (filtered coupled dipole method) 
+
+                    alpha_denominator_1 = 1.0 + alpha_CM*((4.0/3.0)*pow(wavenumber_k*d,2) + (2.0/(3.0*pi))*clog((pi - (wavenumber_k*d))/(pi + (wavenumber_k*d)))) + alpha_CM*(2.0/3.0)*pow(wavenumber_k*d,3)*I; //find denominator first (easier to assign complex component this way)
+                    alpha_matrix[0][0]= alpha_CM/alpha_denominator_1;
+                    alpha_matrix[0][1]=0 + 0*I; //find corrected alpha_LDR for row 1 of 3x3 matrix
+                    alpha_matrix[0][2]=0 + 0*I;
+
+                    alpha_matrix[1][0]=0 + 0*I; //find corrected alpha_LDR for row 2 of 3x3 matrix
+                    alpha_matrix[1][1]= alpha_CM/alpha_denominator_1;
+                    alpha_matrix[1][2]=0 + 0*I;
+
+                    alpha_matrix[2][0]=0 + 0*I; //find corrected alpha_LDR for row 3 of 3x3 matrix
+                    alpha_matrix[2][1]=0 + 0*I;
+                    alpha_matrix[2][2]= alpha_CM/alpha_denominator_1; */
+
+
+
+                    /* Find inverse alpha_matrix matrix */
+
+                    inverse_alpha[0][0]= 1.0/alpha_matrix[0][0];
+                    inverse_alpha[0][1]= 0 + 0*I;
+                    inverse_alpha[0][2]= 0 + 0*I;
+
+                    inverse_alpha[1][0]= 0 + 0*I;
+                    inverse_alpha[1][1]= 1.0/alpha_matrix[1][1];   //this is simply the reciprocol along the diagonal (proof in black book)
+                    inverse_alpha[1][2]= 0 + 0*I;
+
+                    inverse_alpha[2][0]= 0 + 0*I;;
+                    inverse_alpha[2][1]= 0 + 0*I;
+                    inverse_alpha[2][2]= 1.0/alpha_matrix[2][2];
 
                     //printf("\n\n d = %g um \n b_1 = %g \n b_2 = %g \n b_3 = %g \n wavenumber k = %g m^-1 \n\n incident_light[0] = %g \n incident_light[1] = %g \n incident_light[2] = %g", d, b_1, b_2, b_3, wavenumber_k, incident_light[0], incident_light[1], incident_light[2]);
                     //printf("\n\n epsilon_sphere = %g + %g i \n alpha_CM = %g + %g i \n denominator 1: %g + %g i\n denominator 2: %g + %g i\n denominator 3: %g + %g i", creal(epsilon_sphere), cimag(epsilon_sphere), creal(alpha_CM), cimag(alpha_CM), creal(alpha_denominator_1), cimag(alpha_denominator_1),creal(alpha_denominator_2), cimag(alpha_denominator_2),creal(alpha_denominator_3), cimag(alpha_denominator_3));
 
                     //printf("\n\n\n Original Matrix:  ");
 
-                    //printf("\n\n\n %10g +%10g i   %10g +%10g i    %10g +%10g i   ", creal(alpha_CLDR[0][0]), cimag(alpha_CLDR[0][0]), creal(alpha_CLDR[0][1]), cimag(alpha_CLDR[0][1]), creal(alpha_CLDR[0][2]), cimag(alpha_CLDR[0][2]));
-                    //printf("\n\n\n %10g +%10g i   %10g +%10g i    %10g +%10g i   ", creal(alpha_CLDR[1][0]), cimag(alpha_CLDR[1][0]), creal(alpha_CLDR[1][1]), cimag(alpha_CLDR[1][1]), creal(alpha_CLDR[1][2]), cimag(alpha_CLDR[1][2]));
-                    //printf("\n\n\n %10g +%10g i   %10g +%10g i    %10g +%10g i   ", creal(alpha_CLDR[2][0]), cimag(alpha_CLDR[2][0]), creal(alpha_CLDR[2][1]), cimag(alpha_CLDR[2][1]), creal(alpha_CLDR[2][2]), cimag(alpha_CLDR[2][2]));
+                    //printf("\n\n\n %10g +%10g i   %10g +%10g i    %10g +%10g i   ", creal(alpha_matrix[0][0]), cimag(alpha_matrix[0][0]), creal(alpha_matrix[0][1]), cimag(alpha_matrix[0][1]), creal(alpha_matrix[0][2]), cimag(alpha_matrix[0][2]));
+                    //printf("\n\n\n %10g +%10g i   %10g +%10g i    %10g +%10g i   ", creal(alpha_matrix[1][0]), cimag(alpha_matrix[1][0]), creal(alpha_matrix[1][1]), cimag(alpha_matrix[1][1]), creal(alpha_matrix[1][2]), cimag(alpha_matrix[1][2]));
+                    //printf("\n\n\n %10g +%10g i   %10g +%10g i    %10g +%10g i   ", creal(alpha_matrix[2][0]), cimag(alpha_matrix[2][0]), creal(alpha_matrix[2][1]), cimag(alpha_matrix[2][1]), creal(alpha_matrix[2][2]), cimag(alpha_matrix[2][2]));
 
                     //printf("\n\n\n INVERSE Matrix:  ");
 
-                    //printf("\n\n\n %10g +%10g i    %10g +%10g i    %10g +%10g i   ", creal(inverse_alpha_CLDR[0][0]), cimag(inverse_alpha_CLDR[0][0]), creal(inverse_alpha_CLDR[0][1]), cimag(inverse_alpha_CLDR[0][1]), creal(inverse_alpha_CLDR[0][2]), cimag(inverse_alpha_CLDR[0][2]));
-                    //printf("\n\n\n %10g +%10g i    %10g +%10g i    %10g +%10g i   ", creal(inverse_alpha_CLDR[1][0]), cimag(inverse_alpha_CLDR[1][0]), creal(inverse_alpha_CLDR[1][1]), cimag(inverse_alpha_CLDR[1][1]), creal(inverse_alpha_CLDR[1][2]), cimag(inverse_alpha_CLDR[1][2]));
-                    //printf("\n\n\n %10g +%10g i    %10g +%10g i    %10g +%10g i   ", creal(inverse_alpha_CLDR[2][0]), cimag(inverse_alpha_CLDR[2][0]), creal(inverse_alpha_CLDR[2][1]), cimag(inverse_alpha_CLDR[2][1]), creal(inverse_alpha_CLDR[2][2]), cimag(inverse_alpha_CLDR[2][2]));
+                    //printf("\n\n\n %10g +%10g i    %10g +%10g i    %10g +%10g i   ", creal(inverse_alpha[0][0]), cimag(inverse_alpha[0][0]), creal(inverse_alpha[0][1]), cimag(inverse_alpha[0][1]), creal(inverse_alpha[0][2]), cimag(inverse_alpha[0][2]));
+                    //printf("\n\n\n %10g +%10g i    %10g +%10g i    %10g +%10g i   ", creal(inverse_alpha[1][0]), cimag(inverse_alpha[1][0]), creal(inverse_alpha[1][1]), cimag(inverse_alpha[1][1]), creal(inverse_alpha[1][2]), cimag(inverse_alpha[1][2]));
+                    //printf("\n\n\n %10g +%10g i    %10g +%10g i    %10g +%10g i   ", creal(inverse_alpha[2][0]), cimag(inverse_alpha[2][0]), creal(inverse_alpha[2][1]), cimag(inverse_alpha[2][1]), creal(inverse_alpha[2][2]), cimag(inverse_alpha[2][2]));
 
-                    /* create the A_jk elements on the first loop for a particular wavelength -- if we are keeping the wavelength the same, we only need to update the first vectors[0][0][0][0] term (because alpha_CLDR depends on direction!) and E[] */
+                    /* create the A_jk elements on the first loop for a particular wavelength -- if we are keeping the wavelength the same, we only need to update the first vectors[0][0][0][0] term (because alpha_matrix depends on direction!) and E[] */
 
                     if(angle_index==0){ //we are on the first angle for this wavelength, calculate all of the A_jk elements
 
@@ -2426,9 +2708,9 @@ int main()
                                 for(int z=0;z<N_z;z++){
 
                                     if((x==0)&&(y==0)&&(z==0)){ //assign alpha values to cell [0][0][0]
-                                        vectors[0][0][0][0]=inverse_alpha_CLDR[0][0];
-                                        vectors[0][0][0][1]=inverse_alpha_CLDR[1][1];
-                                        vectors[0][0][0][2]=inverse_alpha_CLDR[2][2];
+                                        vectors[0][0][0][0]=inverse_alpha[0][0];
+                                        vectors[0][0][0][1]=inverse_alpha[1][1];
+                                        vectors[0][0][0][2]=inverse_alpha[2][2];
 
                                         vectors[0][0][0][3]=0;
                                         vectors[0][0][0][4]=0; //these values are not needed (never accessed)
@@ -2438,7 +2720,8 @@ int main()
                                         vectors[0][0][0][7]=0;
                                         vectors[0][0][0][8]=0;
                                     }
-                                    else{ //calculate and assign the compact form of each A_kj element
+                                    else{ //calculate and assign the compact form of each A_jk element that could be possible for an array of dipoles with maximum dimensions "N_x  x  N_y  x  N_z" (we probab;y won't use them all, but need to precalculate all possibilities to keep our matrix in compact form, rather than writing out a full matrix with lots of duplicate terms)
+
                                         double mag_r_jk= sqrt(pow(x,2)+pow(y,2)+pow(z,2)); //find magnitude of vector r between dipole at point 000 -> point ijk
 
                                         double r_vector[3]; //declare within loop to keep a private variable
@@ -2448,21 +2731,88 @@ int main()
 
                                         //printf("\n  %d   %d   %d        %3.0f  %3.0f  %3.0f", x,y,z,r_vector[0],r_vector[1],r_vector[2]);
 
-                                        double _Complex A_1= cexp(wavenumber_k*d*mag_r_jk*I)/pow(mag_r_jk,3);
-                                        double A_2= pow(wavenumber_k*d,2);
-                                        double _Complex A_3= (1.0 - wavenumber_k*d*mag_r_jk*I)/pow(mag_r_jk,2);
 
-                                        vectors[x][y][z][0]= A_1*(A_2*(r_vector[0]*r_vector[0] - pow(mag_r_jk,2)) + A_3*(pow(mag_r_jk,2) - 3.0*r_vector[0]*r_vector[0])); // element xx
-                                        vectors[x][y][z][1]= A_1*(A_2*(r_vector[1]*r_vector[1] - pow(mag_r_jk,2)) + A_3*(pow(mag_r_jk,2) - 3.0*r_vector[1]*r_vector[1])); // element yy
-                                        vectors[x][y][z][2]= A_1*(A_2*(r_vector[2]*r_vector[2] - pow(mag_r_jk,2)) + A_3*(pow(mag_r_jk,2) - 3.0*r_vector[2]*r_vector[2])); // element zz
+                                        if(FLTCDM==0){ // use GDK LDR METHOD TO ASSIGN A_jk elements
 
-                                        vectors[x][y][z][3]= A_1*r_vector[0]*r_vector[1]*(A_2 - 3.0*A_3); // element xy
-                                        vectors[x][y][z][4]= A_1*r_vector[0]*r_vector[2]*(A_2 - 3.0*A_3); // element xz
-                                        vectors[x][y][z][5]= A_1*r_vector[1]*r_vector[2]*(A_2 - 3.0*A_3); // element yz
+                                            double _Complex A_1= cexp(wavenumber_k*d*mag_r_jk*I)/pow(mag_r_jk,3);
+                                            double A_2= pow(wavenumber_k*d,2);
+                                            double _Complex A_3= (1.0 - wavenumber_k*d*mag_r_jk*I)/pow(mag_r_jk,2);
 
-                                        vectors[x][y][z][6]= -1.0*A_1*r_vector[0]*r_vector[1]*(A_2 - 3.0*A_3); // element -xy
-                                        vectors[x][y][z][7]= -1.0*A_1*r_vector[0]*r_vector[2]*(A_2 - 3.0*A_3); // element -xz
-                                        vectors[x][y][z][8]= -1.0*A_1*r_vector[1]*r_vector[2]*(A_2 - 3.0*A_3); // element -yz
+                                            //printf("\n\n %2d %2d %2d : \n\n\t wavenumber_k*d = %f \n\t mag_r_jk = %f \n\t AKD2 = %f ", x, y, z, wavenumber_k*d, mag_r_jk, (wavenumber_k*d)*(wavenumber_k*d));
+
+                                            vectors[x][y][z][0]= A_1*(A_2*(r_vector[0]*r_vector[0] - pow(mag_r_jk,2)) + A_3*(pow(mag_r_jk,2) - 3.0*r_vector[0]*r_vector[0])); // element xx
+                                            vectors[x][y][z][1]= A_1*(A_2*(r_vector[1]*r_vector[1] - pow(mag_r_jk,2)) + A_3*(pow(mag_r_jk,2) - 3.0*r_vector[1]*r_vector[1])); // element yy
+                                            vectors[x][y][z][2]= A_1*(A_2*(r_vector[2]*r_vector[2] - pow(mag_r_jk,2)) + A_3*(pow(mag_r_jk,2) - 3.0*r_vector[2]*r_vector[2])); // element zz
+
+                                            vectors[x][y][z][3]= A_1*r_vector[0]*r_vector[1]*(A_2 - 3.0*A_3); // element xy
+                                            vectors[x][y][z][4]= A_1*r_vector[0]*r_vector[2]*(A_2 - 3.0*A_3); // element xz
+                                            vectors[x][y][z][5]= A_1*r_vector[1]*r_vector[2]*(A_2 - 3.0*A_3); // element yz
+
+                                            vectors[x][y][z][6]= -1.0*A_1*r_vector[0]*r_vector[1]*(A_2 - 3.0*A_3); // element -xy
+                                            vectors[x][y][z][7]= -1.0*A_1*r_vector[0]*r_vector[2]*(A_2 - 3.0*A_3); // element -xz
+                                            vectors[x][y][z][8]= -1.0*A_1*r_vector[1]*r_vector[2]*(A_2 - 3.0*A_3); // element -yz
+
+                                            //printf("\n\n\t DCXSUM(1) = %f + %f i \n\t DCXSUM(2) = %f + %f i \n\t DCXSUM(3) = %f + %f i \n\t DCXSUM(4) = %f + %f i \n\t DCXSUM(5) = %f + %f i \n\t DCXSUM(6) = %f + %f i", creal(vectors[x][y][z][0]), cimag(vectors[x][y][z][0]), creal(vectors[x][y][z][3]), cimag(vectors[x][y][z][3]), creal(vectors[x][y][z][4]), cimag(vectors[x][y][z][4]), creal(vectors[x][y][z][1]), cimag(vectors[x][y][z][1]), creal(vectors[x][y][z][5]), cimag(vectors[x][y][z][5]), creal(vectors[x][y][z][2]), cimag(vectors[x][y][z][2]));
+
+                                        }
+                                        else{ // use FILTERED COUPLED-DIPOLE METHOD TO ASSIGN G_jk elements
+
+                                            /* calculate sine and cosine integrals (using approximations) */
+
+                                            double Si;
+                                            double _Complex Ci;
+                                            
+                                            double x_arg = (pi + wavenumber_k*d)*mag_r_jk; // +ve argument
+                                            get_Si_and_Ci(x_arg, &Si, &Ci);
+                                            double Si_plus= Si;
+                                            double _Complex Ci_plus= Ci;
+
+                                            //printf("\n\n %2d %2d %2d : \n\n\t wavenumber_k*d = %f \n\t mag_r_jk = %f \n\t AKD2 = %f \n\n\t x_arg (+) = %f \n\t Si+: %f \n\t Ci+: %f + %f i", x, y, z, wavenumber_k*d, mag_r_jk, (wavenumber_k*d)*(wavenumber_k*d), x_arg, Si_plus, creal(Ci_plus), cimag(Ci_plus));
+
+                                            x_arg = (pi - wavenumber_k*d)*mag_r_jk; // -ve argument
+                                            get_Si_and_Ci(x_arg, &Si, &Ci);
+                                            double Si_minus= Si;
+                                            double _Complex Ci_minus= Ci;
+
+                                            //printf("\n\n\t x_arg (-) = %f\n\t Si-: %f \n\t Ci-: %f + %f i", x_arg, Si_minus, creal(Ci_minus), cimag(Ci_minus));
+
+                                            /* calculate alpha terms */
+
+                                            double _Complex alpha_0 = sin(wavenumber_k*d*mag_r_jk)*(Ci_plus-Ci_minus) + cos(wavenumber_k*d*mag_r_jk)*(pi - Si_plus - Si_minus);
+                                            double _Complex alpha_1 = wavenumber_k*d*sin(wavenumber_k*d*mag_r_jk)*(Si_plus + Si_minus - pi) + wavenumber_k*d*cos(wavenumber_k*d*mag_r_jk)*(Ci_plus - Ci_minus) - 2.0*sin(pi*mag_r_jk)/mag_r_jk;
+                                            double _Complex alpha_2 = pow(wavenumber_k*d,2)*sin(wavenumber_k*d*mag_r_jk)*(Ci_minus - Ci_plus) + pow(wavenumber_k*d,2)*cos(wavenumber_k*d*mag_r_jk)*(Si_plus + Si_minus - pi) + 2.0*sin(pi*mag_r_jk)/pow(mag_r_jk,2) - 2.0*pi*cos(pi*mag_r_jk)/mag_r_jk;
+                                        
+                                            //printf("\n\n\t alpha 0 = %f + %f i \n\t alpha 1 = %f + %f i \n\t alpha 2 = %f + %f i", creal(alpha_0), cimag(alpha_0), creal(alpha_1), cimag(alpha_1), creal(alpha_2), cimag(alpha_2));
+
+                                            /* calculate g_0,1,2 terms and h_r */
+
+                                            double _Complex g_0 = (cexp(I*wavenumber_k*d*mag_r_jk) - alpha_0/pi)/mag_r_jk;                                        
+                                            double _Complex g_1 = (cexp(I*wavenumber_k*d*mag_r_jk)*(I*wavenumber_k*d*mag_r_jk - 1.0) + (alpha_0 - alpha_1*mag_r_jk)/pi)/pow(mag_r_jk,2);                                        
+                                            double _Complex g_2 = (cexp(I*wavenumber_k*d*mag_r_jk)*(2.0 - 2.0*I*wavenumber_k*d*mag_r_jk - pow(wavenumber_k*d*mag_r_jk,2)) - (2.0*(alpha_0 - alpha_1*mag_r_jk)+ pow(mag_r_jk,2)*alpha_2)/pi)/pow(mag_r_jk,3);                                        
+
+                                            double h_r = (sin(pi*mag_r_jk) - pi*mag_r_jk*cos(pi*mag_r_jk))/(pi*pow(mag_r_jk,3));
+
+                                            //printf("\n\n\t g_0 = %f + %f i \n\t g_1 = %f + %f i \n\t g_2 = %f + %f i \n\n\t h_r = %f + %f i", creal(g_0), cimag(g_0), creal(g_1), cimag(g_1), creal(g_2), cimag(g_2), h_r);
+
+                                            /* The negative signs are required because DDSCAT finds the NEGATIVE of the DCXSUMS... Been caught out by this twice now! Basically, if writing a paper on these, make them all negative */
+
+                                            vectors[x][y][z][0]= -1.0*(pow(wavenumber_k*d,2)*g_0 + g_1/mag_r_jk + (2.0/3.0)*h_r + (g_2/pow(mag_r_jk,2) - g_1/pow(mag_r_jk,3))*r_vector[0]*r_vector[0]); // element xx
+                                            vectors[x][y][z][1]= -1.0*(pow(wavenumber_k*d,2)*g_0 + g_1/mag_r_jk + (2.0/3.0)*h_r + (g_2/pow(mag_r_jk,2) - g_1/pow(mag_r_jk,3))*r_vector[1]*r_vector[1]); // element yy
+                                            vectors[x][y][z][2]= -1.0*(pow(wavenumber_k*d,2)*g_0 + g_1/mag_r_jk + (2.0/3.0)*h_r + (g_2/pow(mag_r_jk,2) - g_1/pow(mag_r_jk,3))*r_vector[2]*r_vector[2]); // element zz
+
+                                            vectors[x][y][z][3]= -1.0*(g_2/pow(mag_r_jk,2) - g_1/pow(mag_r_jk,3))*r_vector[0]*r_vector[1]; // element xy
+                                            vectors[x][y][z][4]= -1.0*(g_2/pow(mag_r_jk,2) - g_1/pow(mag_r_jk,3))*r_vector[0]*r_vector[2]; // element xz
+                                            vectors[x][y][z][5]= -1.0*(g_2/pow(mag_r_jk,2) - g_1/pow(mag_r_jk,3))*r_vector[1]*r_vector[2]; // element yz
+
+                                            vectors[x][y][z][6]= (g_2/pow(mag_r_jk,2) - g_1/pow(mag_r_jk,3))*r_vector[0]*r_vector[1]; // element -xy
+                                            vectors[x][y][z][7]= (g_2/pow(mag_r_jk,2) - g_1/pow(mag_r_jk,3))*r_vector[0]*r_vector[2]; // element -xz: 
+                                            vectors[x][y][z][8]= (g_2/pow(mag_r_jk,2) - g_1/pow(mag_r_jk,3))*r_vector[1]*r_vector[2]; // element -yz
+
+                                            //print statement to benchmark elements in the same order as DDSCAT
+                                            //printf("\n\n\t DCXSUM(1) = %f + %f i \n\t DCXSUM(2) = %f + %f i \n\t DCXSUM(3) = %f + %f i \n\t DCXSUM(4) = %f + %f i \n\t DCXSUM(5) = %f + %f i \n\t DCXSUM(6) = %f + %f i", creal(vectors[x][y][z][0]), cimag(vectors[x][y][z][0]), creal(vectors[x][y][z][3]), cimag(vectors[x][y][z][3]), creal(vectors[x][y][z][4]), cimag(vectors[x][y][z][4]), creal(vectors[x][y][z][1]), cimag(vectors[x][y][z][1]), creal(vectors[x][y][z][5]), cimag(vectors[x][y][z][5]), creal(vectors[x][y][z][2]), cimag(vectors[x][y][z][2]));
+
+
+                                        }
                                     }
                                     //printf("\n\n vectors[%d][%d][%d][0] = %f + %f i \n vectors[x][y][z][1] = %f + %f i \n vectors[x][y][z][2] = %f + %f i \n vectors[x][y][z][3] = %f + %f i \n vectors[x][y][z][4] = %f + %f i \n vectors[x][y][z][5] = %f + %f i \n vectors[x][y][z][6] = %f + %f i \n vectors[x][y][z][7] = %f + %f i \n vectors[x][y][z][8] = %f + %f i \n",x,y,z,vectors[x][y][z][0],vectors[x][y][z][1],vectors[x][y][z][2],vectors[x][y][z][3],vectors[x][y][z][4],vectors[x][y][z][5],vectors[x][y][z][6],vectors[x][y][z][7],vectors[x][y][z][8]);
                                 }
@@ -2471,9 +2821,9 @@ int main()
                         #pragma omp barrier
                     }
                     else{ //for the other angles, we only need to update the first term (because it depends on incident light direction -- the rest of the elements are the same!)
-                        vectors[0][0][0][0]=inverse_alpha_CLDR[0][0];
-                        vectors[0][0][0][1]=inverse_alpha_CLDR[1][1];
-                        vectors[0][0][0][2]=inverse_alpha_CLDR[2][2];
+                        vectors[0][0][0][0]=inverse_alpha[0][0];
+                        vectors[0][0][0][1]=inverse_alpha[1][1];
+                        vectors[0][0][0][2]=inverse_alpha[2][2];
                     }
 
                     //printf(" Compact matrix initialised.");
@@ -2502,6 +2852,9 @@ int main()
                         //printf(" \n\n incident_light[0]=%f\n incident_light[1]=%f\n incident_light[2]=%f\n exp_term= %g + %g i \n\n E_1= %g + %g i \n E_2= %g + %g i \n E_3 = %g + %g i \n\n", incident_light[0], incident_light[1], incident_light[2], creal(exp_term), cimag(exp_term), creal(E[0+3*v]), cimag(E[0+3*v]), creal(E[1+3*v]), cimag(E[1+3*v]), creal(E[2+3*v]), cimag(E[2+3*v]));
                     }
 
+                    //printf("\n\n\n\n ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+                    //printf("\n --------------------------------------------------------   MARBLES (Matt's Awesome Really Brilliant Linear Equation Solver)!   --------------------------------------------------------");
+                    //printf("\n ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
 
                     if(speed_test==1){
                         current_time= omp_get_wtime();
@@ -3156,10 +3509,20 @@ int main()
                         return 1;
                     }
 
-                    /* Calculate efficiencies and cross-sections */
+                    /* Calculate efficiencies and cross-sections 
                     //printf("\n\n ---------------------------------------------------------------------------    CROSS-SECTIONS AND Q_VALUES   -----------------------------------------------------------------------\n\n\n");
 
-                    //printf("\n\t\t\t       E*_inc[j]    \t\t\t\t\t\tP[j] \t\t\t\                 ext_sum\n");
+                    printf("\n\n\n\t\t\t       E_inc[j]    \t\t\t\t\t\tP[j] \n");
+                    
+                    for(j=0;j<N;j++){
+                        printf("\n");
+                        for(i=0;i<3;i++){
+                            printf("\n   %g %g %g     %14g + %14g i \t\t\t %14g + %14g i ", dipole_positions[j][0], dipole_positions[j][1], dipole_positions[j][2], E_inc[i+3*j], P[i+3*j]);
+                        }
+                    } */
+                    
+
+                    //printf("\n\n\n\t\t\t       conj_E[j]    \t\t\t\t\t\tP[j] \t\t\t                 ext_sum\n");
                     ext_sum=0;
 
                     for(i=0;i<3;i++){
@@ -3181,13 +3544,13 @@ int main()
                     for(j=0;j<n;j++){
 
                         if((j%3)==0){
-                            conj_inverse_alpha= creal(inverse_alpha_CLDR[0][0]) - cimag(inverse_alpha_CLDR[0][0])*I;
+                            conj_inverse_alpha= creal(inverse_alpha[0][0]) - cimag(inverse_alpha[0][0])*I;
                         }
                         else if(((j-1)%3)==0){
-                            conj_inverse_alpha= creal(inverse_alpha_CLDR[1][1]) - cimag(inverse_alpha_CLDR[1][1])*I;
+                            conj_inverse_alpha= creal(inverse_alpha[1][1]) - cimag(inverse_alpha[1][1])*I;
                         }
                         else{
-                            conj_inverse_alpha= creal(inverse_alpha_CLDR[2][2]) - cimag(inverse_alpha_CLDR[2][2])*I;
+                            conj_inverse_alpha= creal(inverse_alpha[2][2]) - cimag(inverse_alpha[2][2])*I;
                         }
 
                         conj_P[j]= creal(P[j]) - cimag(P[j])*I;
@@ -3206,11 +3569,7 @@ int main()
 
 
 
-                    /* CALCULATION OF g=<cos(theta)> */
-
-                    // IMPORTANT NOTE: credit for the next 220 lines of code is attributed to the Bruce Draine and Piotr Flatau (authors of DDSCAT); we kept 
-                    // identical variable names and methodology as their original FORTRAN code to make benchmarking simpler, for the calculation of g_asymmetry 
-                    // only (the next ~220 lines of code).
+                    /* DDSCAT CALCULATION OF g=<cos(theta)>: converted to C from original code in DDSCAT by Draine. B, and all credit to him */
 
                     ETASCA = 0.5; // this is an input parameter -- smaller values means more scattering angles will be assessed = higher accuracy
 
@@ -3497,9 +3856,7 @@ int main()
                 averaged_results[wavelength_index][5] = averaged_results[wavelength_index][5]/num_vertices;
                 averaged_results[wavelength_index][6] = averaged_results[wavelength_index][6]/num_vertices;
 
-                /* save orientational averages to results file - have removed this statement so that the data isn't mixed and is easier to read by pandas... */
-                //fprintf(results_angles_file, "      ORIENTATIONAL AVERAGE        %10f      %13.9f     %13.9f    %13.9f      %13.9f    %13.9f    %13.9f\n", wavelength, averaged_results[wavelength_index][0], averaged_results[wavelength_index][1], averaged_results[wavelength_index][2], averaged_results[wavelength_index][3], averaged_results[wavelength_index][4], averaged_results[wavelength_index][5]);
-
+                
                 /*increase increments and return to top of loop to assess next wavelength */
             }
 
@@ -3819,8 +4176,8 @@ int main()
     mmfresultsfile=fopen("mmf_results.txt","w"); //open file
     fprintf(mmfresultsfile,"   Radius(um)        Wavelength(um)         Q_Ext          Q_Scatter        Q_Abs             C_Ext         C_Scatter         C_Abs     g=<cos(theta)>\n");
         
-    //mftresultsfile=fopen("mft_results.txt","w"); //open file
-    //fprintf(mftresultsfile,"   Radius(um)        Wavelength(um)         Q_Ext          Q_Scatter        Q_Abs             C_Ext         C_Scatter         C_Abs     g=<cos(theta)>\n");
+    mftresultsfile=fopen("mft_results.txt","w"); //open file
+    fprintf(mftresultsfile,"   Radius(um)        Wavelength(um)         Q_Ext          Q_Scatter        Q_Abs             C_Ext         C_Scatter         C_Abs     g=<cos(theta)>\n");
          
     /* open file for saving results in VIRGA format */
     MMF_mieff_file=fopen("VIRGA/MMF.mieff","w"); //open file for saving MMF results in VIRGA format
@@ -3850,7 +4207,7 @@ int main()
 
         radius_of_gyration= radius_of_gyration_unscaled*d; // calculate radius of gyration by converting our unscaled value (in units of "dipoles") to um, now that we know d
         
-        d_f = calculate_d_f(N_monomers, radius_of_gyration, r_monomer); //calculate the value of fractal dimension using Eq. 2 from Tazeki (2021) Geofrac paper
+        d_f = calculate_d_f(N_monomers, radius_of_gyration, r_monomer); //calculate the value of fractal dimension using Eq. 2 from Tazaki (2021) Geofrac paper
 
         // radius of gyration is calculated earlier in the program, as soon as we load the shape file
         k_frac_prefactor = N_monomers/pow(radius_of_gyration/r_monomer, d_f); // calculate the fractal prefactor).
@@ -3859,14 +4216,14 @@ int main()
 
 
 
-        /* calculate the geometrical cross-section of the fractal aggregate using Tazeki's "Analytic expressions for geometric cross-sections of fractal dust aggregates". 
+        /* calculate the geometrical cross-section of the fractal aggregate using Tazaki's "Analytic expressions for geometric cross-sections of fractal dust aggregates" (saved in Zotero). 
         Have benchmarked against the code in optools_geofractal.f90 */
 
         G_MMF = calculate_geometrical_cross_section(N_monomers, r_monomer, d_f, k_frac_prefactor, pi);
 
 
         /* save all MMF inputs to an outfile for easy comparison with other codes */
-        fprintf(MMFparameterfile," number of monomers = %d \n monomer radius =  = %f um \n k_prefactor = %f \n d_f = %f \n radius of gyration = %f um \n geometrical cross-section = %f um^2 (absolute value, not the normalised one)\n\n", N_monomers, r_monomer, k_frac_prefactor, d_f, radius_of_gyration, G_MMF);
+        fprintf(MMFparameterfile," number of monomers = %d \n monomer radius = %f um \n k_prefactor = %f \n d_f = %f \n radius of gyration = %f um \n geometrical cross-section = %f um^2 (absolute value, not the normalised one)\n\n", N_monomers, r_monomer, k_frac_prefactor, d_f, radius_of_gyration, G_MMF);
             
         printf("\n\n In DDA, we considered %d dipoles with d= %f um, and so volume (d^3) of %f um^3, which would have an equivalent total size (mass or volume) to a Mie sphere of radius %f um. \n", N, d, pow(d,3.0), aerosol_radius);
         printf("\n Here, in MMF, we consider that this aerosol shape is composed of %d individual monomers each with a radius of %f um (to conserve volume between the models), and a geometrical cross-section of %f um^2. \n", N_monomers, r_monomer, G_MMF);
@@ -3940,22 +4297,9 @@ int main()
             wavenumber_k= 2.0*pi/wavelength;
 
 
-
-            /* OVERRIDING VALUES to match Tazeki II/Botet paper and test results - DELETE THESE AFTER DEBUG!
-            d_f = 2.0;
-            ref_ind_sphere= 1.4 + 0.0001*I;
-            radius_of_gyration =  exp(log(N_monomers/k_frac_prefactor)/d_f)*r_monomer; //rearranged Eq 14 to use to find R_g for the test values 
-            wavelength = 0.8; //0.8 um
-            wavenumber_k= 2.0*pi/wavelength; //recalculate now we have overriden wavelength as 0.8 um above
-            NOTE: remember to change wavelength_min BEFORE we find size parameters and initialise any arrays, too... */
-
-
-
-
-
             x_agg= 2.0*pi*radius_of_gyration/wavelength;
             x_mon= 2.0*pi*r_monomer/wavelength; // different to Mie sphere model - size parameter of a SINGLE MONOMER (uses the monomer radius, not mie sphere of equivalent volume to bulk fractal)   
-            n_max= calculate_n_max(x_mon); //x represents the monomer size parameter in Tazeki, not x_c (the aggregate size parameter)
+            n_max= calculate_n_max(x_mon); //x represents the monomer size parameter in Tazaki, not x_c (the aggregate size parameter)
             n_min= 1;
             n_MMF= n_min; //initialise first term
 
@@ -3989,10 +4333,10 @@ int main()
             u_min= x_agg*exp(-40.0/d_f);
 
             if(MMF_method==0){
-                u_max = 2.0* x_agg * sqrt(25.0/d_f); // Tazaki + Tanaka 2016 (GAUSS)
+                u_max = 2.0* x_agg * sqrt(25.0/d_f); // Tazaki 2016 (GAUSS)
             }
             else{
-                u_max = x_agg*pow((2.0*25.0),(1.0/d_f)); // Tazaki + Tanaka 2016 (FLDIM)
+                u_max = x_agg*pow((2.0*25.0),(1.0/d_f)); // Tazaki 2016 (FLDIM)
             }
             num_steps_integral = 10000; //same value used in optools_fractal.f90
             du=(u_max-u_min)/num_steps_integral; //calculate step size
@@ -4041,7 +4385,7 @@ int main()
                 //SAFETY CHECK - S(p) should always be >=0
                 if(creal(structure_factor_terms[p_MMF])<0){
                     printf("\n WARNING: S[%d] < 0. Assuming it should be = 0 instead (this can happen for d_f > 2, and is ok...)", p_MMF);
-                    structure_factor_terms[p_MMF]=0; //if the monomers are far enough apart that they don't affect each other, setting S_p = 0 should find a case for two non-interacting spheres. I made this decision independently, but Tazeki made the same note in optools_fractal.f90!
+                    structure_factor_terms[p_MMF]=0; //if the monomers are far enough apart that they don't affect each other, setting S_p = 0 should find a case for two non-interacting spheres. I made this decision independently, but Tazaki made the same note in optools_fractal.f90!
                 }
             }
             printf(" Done!");
@@ -4205,6 +4549,7 @@ int main()
                         /* SOLVE LINEAR EQUATIONS USING CONJUGATE GRADIENT METHOD */
 
                 // Here we aim to find unknown values 'd' from the linear matrix equation:       Ad = F     ( A * d_terms = final_col)
+                // The code is very similar to the solver for DDA, but different enough to warrant it's own version to enhance readability.
 
                 n = 2*n_max; // set the numnber of equations to solve
 
@@ -4479,6 +4824,10 @@ int main()
             MMF_results[wavelength_index][6]=g_asymmetry_MMF;
 
 
+
+
+            
+
             /* CODE TO PRODUCE JUST MFT INSTEAD OF MMF - NOT NORMALLY USED, BUT IF SO, IT WILL BE SAVED IN THE MMF_results.txt FILE! */
 
 
@@ -4518,10 +4867,10 @@ int main()
             fprintf(mmfresultsfile, "    %10e      %10e      %10e     %10e    %10e      %10e    %10e    %10e    %10e\n", aerosol_radius, wavelength_list[i], MMF_results[i][0], MMF_results[i][1], MMF_results[i][2], MMF_results[i][3], MMF_results[i][4], MMF_results[i][5], MMF_results[i][6]);
         }
 
-        /* save MFT results for all wavelengths analysed at this radius 
+        /* save MFT results for all wavelengths analysed at this radius */
         for(i=0;i<num_wavelengths;i++){
             fprintf(mftresultsfile, "    %10e      %10e      %10e     %10e    %10e      %10e    %10e    %10e    %10e\n", aerosol_radius, wavelength_list[i], MFT_results[i][0], MFT_results[i][1], MFT_results[i][2], MFT_results[i][3], MFT_results[i][4], MFT_results[i][5], MFT_results[i][6]);
-        }*/
+        }
 
         /* save results in VIRGA format (wavelengths go from highest to lowest, reverse order compared to the above!) */
         for(i=(num_wavelengths-1);i>=0;i--){
@@ -4549,7 +4898,7 @@ int main()
 
     /* close results files */
     fclose(mmfresultsfile);
-    //fclose(mftresultsfile);
+    fclose(mftresultsfile);
     fclose(MMF_mieff_file);
 
     /* close MMF key parameter file */
