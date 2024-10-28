@@ -7,13 +7,17 @@ CORAL (Comparison Of Radiative AnaLyses) calculates the optical properties of pa
 
 The main outputs are the optical efficiencies $Q_{ext}$, $Q_{sca}$, $Q_{abs}$, and $g=<\cos(\theta)>$, as well as the associated cross-sections in $\mu m^2$, for a given wavelength range, aggregate radius range, shape-type, and refractive index profile.
 
-All three methods and their equations used in the code are explained in detail in the paper within this folder (Lodge_et_al_2023.pdf). We are incredibly grateful to Kouji Adachi, Peter Buseck and Serena Chung 
-for allowing the use of the shape.dat files included in the templates folder, which were obtained using the methods outlined in their paper ["Shapes of soot aerosol particles and implications for their 
-effects on climate"](https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2009JD012868) (2010), JGR.
+All three methods (including details of equations) used in the code are explained in detail in the two papers available within the root folder:
+
+- <b>PAPER 1:</b> "Aerosols are not Spherical Cows: Using Discrete Dipole Approximation to Model the Properties of Fractal Particles" (2023), Lodge et al. This paper includes a thorough explanation of CORAL and the methods used to compare Mie, MMF and DDA (original LDR method)
+      
+- <b>PAPER 2:</b> "MANTA-Ray: Supercharging Speeds for Calculating the Optical Properties of Fractal Aggregates in the Long-Wavelength Limit" (2024), Lodge et al. In section 2.2.2 of this paper, we describe an update to the DDA calculation in CORAL, which allows the user choice of LDR (the original DDA method) or the Filtered Coupled Dipole method of Yurkin et al. (2010).
+
+We are incredibly grateful to Kouji Adachi, Peter Buseck and Serena Chung for allowing the use of the shape.dat files included in the templates folder, which were obtained using the methods outlined in their paper ["Shapes of soot aerosol particles and implications for their effects on climate"](https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2009JD012868) (2010), JGR.
 
 # Running the Code
 
-1) Download all of the files into a directory of your choice -- these are already set up to run as demonstration. There are 6 key files in this folder:
+1) Download all of the files into a directory of your choice -- these are already set up with default values to run as demonstration. There are 6 key files in this folder:
 
     - CORAL.c (the main code which we will compile)
     - shape.dat (the shape file that describes the aerosol)
@@ -38,10 +42,13 @@ do not want to use it. Further details about OpenMP are [here.](https://www.open
 
 The parameters file details the range of wavelengths to study and the size of the particles etc. There are several options for the user to choose, and these are detailed below.
 
-<b>IMPORTANT NOTE: the formatting has to be kept <i>exactly</i> the same as the original file i.e. if you change "shapeswitch= 1" to "shapeswitch=1" (if you delete the space after the equals sign), the code will not work. </b>
+<b>IMPORTANT NOTE 1: the formatting has to be kept <i>exactly</i> the same as the original file i.e. if you change "shapeswitch= 1" to "shapeswitch=1" (if you delete the space after the equals sign), the code will not work. </b>
+
+<b>IMPORTANT NOTE 2: CORAL v2.0 includes an option to use the filtered coupled dipole method, and so the old parameter files from v1.0 can no longer be used. Be sure that parameter files use the updated structure below.</b>
 
     shapeswitch: set this to 1 to use shape data file as an input, or set to 0 to make our own spheres with requested N (see below)
     marbleswitch: set to 1 to use Biconjugate Method with Stabilisation method of solving linear equations, or 0 to use standard conjugate gradient method. In our experience, the latter is faster.
+    filtered_coupled_dipole_switch: set to 1 to use filtered coupled dipole method from Yurkin et al. (2010), or 0 to use LDR method from Draine (1994)
     accuracy: this sets the accuracy required for three consecutive iterations of the equation solver to agree and determine that they have converged. We recommend a value of 0.00001, representing (0.001% agreement) 
     aerosol_radius_min: set the minimum radius of aerosols to be examined, in um
     aerosol_radius_max= set the maximum radius of aerosols to be examined, in um
