@@ -13,6 +13,8 @@ All three methods (including details of equations) used in the code are explaine
       
 - <b>PAPER 2:</b> "MANTA-Ray: Supercharging Speeds for Calculating the Optical Properties of Fractal Aggregates in the Long-Wavelength Limit" (2024), Lodge et al. In section 2.2.2 of this paper, we describe an update to the DDA calculation in CORAL, which allows the user choice of LDR (the original DDA method) or the Filtered Coupled Dipole method of Yurkin et al. (2010).
 
+- <b>NOTE</b>: Several small manuscript typos in the FCD theory were identified in Paper 2 by Maxim Yurkin and Clément Argentin, and a corrected version of the paper has now been uploaded here. In addition, there is a sign error in the FCD polarisability term (Eq 7+8), following from an error in the FCD implementation within DDSCAT. Fortunately the difference is negligible for the small-particle regime explored in this paper, and so the results presented in the manuscript are unchanged, but the code has now been corrected. Many thanks to Maxim Yurkin and Clément Argentin for finding these errors.
+
 We are incredibly grateful to Kouji Adachi, Peter Buseck and Serena Chung for allowing the use of the shape.dat files included in the templates folder, which were obtained using the methods outlined in their paper ["Shapes of soot aerosol particles and implications for their effects on climate"](https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2009JD012868) (2010), JGR.
 
 # Running the Code
@@ -142,6 +144,10 @@ throughout were also indredibly helpful for debugging our own models, and we are
     OPTOOL: Dominik, C., Min, M. & Tazaki, R. 2021, Optool, 1.9, Astrophysics Source Code Library, ascl:2104.010
 
     DDSCAT: Draine, B.T., & Flatau, P.J., "Discrete dipole approximation for scattering calculations", J. Opt. Soc. Am. A, 11, 1491-1499 (1994)
+
+For the FCD implementation of DDA, please also cite M. Yurkin:
+
+      Yurkin, M.A., Min, M. and Hoekstra, A.G., 2010. Application of the discrete dipole approximation to very large refractive indices: Filtered coupled dipoles revived. Physical Review E—Statistical, Nonlinear, and Soft Matter Physics, 82(3), p.036703.
 
 Although every care has been taken to benchmark the code and test it under a wide range of conditions (see attached paper for details), 
 this code is provided without a warantee of any kind. The author cannot be held liable or accept any resposibility for any claim, loss 
