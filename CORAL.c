@@ -2541,10 +2541,8 @@ int main()
                     }
                     else{ // use FILTERED COUPLED-DIPOLE METHOD: find FCD version of alpha matrix
 
-                        alpha_denominator_1 = 1.0 + alpha_CM*( (4.0/3.0)*pow(wavenumber_k*d,2) + (2.0/(3.0*pi))*clog((pi - (wavenumber_k*d))/(pi + (wavenumber_k*d)))*pow(wavenumber_k*d,3) ) - alpha_CM*(2.0/3.0)*pow(wavenumber_k*d,3)*I; //find denominator first (easier to assign complex component this way)
+                        alpha_denominator_1 = 1.0 - alpha_CM*( (4.0/3.0)*pow(wavenumber_k*d,2) + (2.0/(3.0*pi))*clog((pi - (wavenumber_k*d))/(pi + (wavenumber_k*d)))*pow(wavenumber_k*d,3) ) - alpha_CM*(2.0/3.0)*pow(wavenumber_k*d,3)*I; //find denominator first (easier to assign complex component this way)
                         
-                        // NOTE: Not sure why, by DDSCAT has made the radiative reaction correction term '(2/3)i(kd)^3 negative in the code (line 287 of 'alphadiag.f90), and it's negative in Draine's (1994) paper, but positive in the user guide. Assuming that the code is correct and forcing ours to match theirs for now (so keeping it negative here). 
-
                         alpha_matrix[0][0]= alpha_CM/alpha_denominator_1;
                         alpha_matrix[0][1]=0 + 0*I; //find corrected alpha_LDR for row 1 of 3x3 matrix
                         alpha_matrix[0][2]=0 + 0*I;
